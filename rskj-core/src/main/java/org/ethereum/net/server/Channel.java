@@ -125,26 +125,34 @@ public class Channel {
 
     }
 
-    public void publicRLPxHandshakeFinished(ChannelHandlerContext ctx, FrameCodec frameCodec,
-                                            HelloMessage helloRemote) throws IOException, InterruptedException {
-
+    public void publicRLPxHandshakeFinished(
+            ChannelHandlerContext ctx,
+            FrameCodec frameCodec,
+            HelloMessage helloRemote,
+            EthVersion ethVersion) {
         logger.debug("publicRLPxHandshakeFinished with " + ctx.channel().remoteAddress());
-        if (P2pHandler.isProtocolVersionSupported(helloRemote.getP2PVersion())) {
 
-            if (helloRemote.getP2PVersion() < 5) {
-                messageCodec.setSupportChunkedFrames(false);
-            }
-
-            FrameCodecHandler frameCodecHandler = new FrameCodecHandler(frameCodec, this);
-            ctx.pipeline().addLast("medianFrameCodec", frameCodecHandler);
-            ctx.pipeline().addLast("messageCodec", messageCodec);
-            ctx.pipeline().addLast(Capability.P2P, p2pHandler);
-
-            p2pHandler.setChannel(this);
-            p2pHandler.setHandshake(helloRemote, ctx);
-
-            getNodeStatistics().rlpxHandshake.add();
+        if (!P2pHandler.isProtocolVersionSupported(helloRemote.getP2PVersion())) {
+            disconnect(ReasonCode.INCOMPATIBLE_PROTOCOL);
+            getNodeStatistics().nodeDisconnectedLocal(ReasonCode.INCOMPATIBLE_PROTOCOL);
+            return;
         }
+
+
+        if (helloRemote.getP2PVersion() < 5) {
+            messageCodec.setSupportChunkedFrames(false);
+        }
+
+        FrameCodecHandler frameCodecHandler = new FrameCodecHandler(frameCodec, this);
+        ctx.pipeline().addLast("medianFrameCodec", frameCodecHandler);
+        ctx.pipeline().addLast("messageCodec", messageCodec);
+        ctx.pipeline().addLast(Capability.P2P, p2pHandler);
+
+        p2pHandler.setChannel(this);
+        p2pHandler.setHandshake(helloRemote);
+        activateEth(ctx, ethVersion);
+
+        getNodeStatistics().rlpxHandshake.add();
     }
 
     public void sendHelloMessage(ChannelHandlerContext ctx, FrameCodec frameCodec, String nodeId,
@@ -172,7 +180,7 @@ public class Channel {
         getNodeStatistics().rlpxOutHello.add();
     }
 
-    public void activateEth(ChannelHandlerContext ctx, EthVersion version) {
+    private void activateEth(ChannelHandlerContext ctx, EthVersion version) {
         EthHandler handler = ethHandlerFactory.create(version);
         MessageFactory messageFactory = createEthMessageFactory(version);
         messageCodec.setEthVersion(version);

@@ -29,6 +29,8 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import org.ethereum.config.SystemProperties;
 import org.ethereum.crypto.ECIESCoder;
 import org.ethereum.crypto.ECKey;
+import org.ethereum.net.client.Capability;
+import org.ethereum.net.client.ConfigCapabilities;
 import org.ethereum.net.message.Message;
 import org.ethereum.net.p2p.DisconnectMessage;
 import org.ethereum.net.p2p.HelloMessage;
@@ -47,6 +49,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.List;
 
+import static org.ethereum.net.eth.EthVersion.fromCode;
 import static org.ethereum.net.rlpx.FrameCodec.Frame;
 import static org.ethereum.util.ByteUtil.bigEndianToShort;
 
@@ -66,6 +69,7 @@ public class HandshakeHandler extends ByteToMessageDecoder {
 
     private final SystemProperties config;
     private final PeerScoringManager peerScoringManager;
+    private final ConfigCapabilities configCapabilities;
 
     private static final Logger loggerWire = LoggerFactory.getLogger("wire");
     private static final Logger loggerNet = LoggerFactory.getLogger("net");
@@ -79,9 +83,10 @@ public class HandshakeHandler extends ByteToMessageDecoder {
     private Channel channel;
     private boolean isHandshakeDone;
 
-    public HandshakeHandler(SystemProperties config, PeerScoringManager peerScoringManager) {
+    public HandshakeHandler(SystemProperties config, PeerScoringManager peerScoringManager, ConfigCapabilities configCapabilities) {
         this.config = config;
         this.peerScoringManager = peerScoringManager;
+        this.configCapabilities = configCapabilities;
         this.myKey = config.getMyKey();
     }
 
@@ -106,7 +111,7 @@ public class HandshakeHandler extends ByteToMessageDecoder {
         }
     }
 
-    public void initiate(ChannelHandlerContext ctx) throws Exception {
+    private void initiate(ChannelHandlerContext ctx) throws Exception {
 
         loggerNet.trace("RLPX protocol activated");
 
@@ -187,9 +192,7 @@ public class HandshakeHandler extends ByteToMessageDecoder {
                 if (frame.getType() == P2pMessageCodes.HELLO.asByte()) {
                     HelloMessage helloMessage = new HelloMessage(payload);
                     loggerNet.trace("From: \t{} \tRecv: \t{}", ctx.channel().remoteAddress(), helloMessage);
-                    isHandshakeDone = true;
-                    this.channel.publicRLPxHandshakeFinished(ctx, frameCodec, helloMessage);
-                    recordSuccessfulHandshake(ctx);
+                    processHelloMessage(ctx, helloMessage);
                 } else {
                     DisconnectMessage message = new DisconnectMessage(payload);
                     loggerNet.trace("From: \t{} \tRecv: \t{}", channel, message);
@@ -287,12 +290,26 @@ public class HandshakeHandler extends ByteToMessageDecoder {
 
                 // Secret authentication finish here
                 channel.sendHelloMessage(ctx, frameCodec, Hex.toHexString(nodeId), inboundHelloMessage);
-                isHandshakeDone = true;
-                this.channel.publicRLPxHandshakeFinished(ctx, frameCodec, inboundHelloMessage);
-                recordSuccessfulHandshake(ctx);
+                processHelloMessage(ctx, inboundHelloMessage);
             }
         }
         channel.getNodeStatistics().rlpxInHello.add();
+    }
+
+    private void processHelloMessage(ChannelHandlerContext ctx, HelloMessage helloMessage) {
+        List<Capability> capInCommon = configCapabilities.getSupportedCapabilities(helloMessage);
+        channel.initMessageCodes(capInCommon);
+        for (Capability capability : capInCommon) {
+            // It seems that the only supported capability is RSK, and everything else is ignored.
+            if (Capability.RSK.equals(capability.getName())) {
+                isHandshakeDone = true;
+                this.channel.publicRLPxHandshakeFinished(ctx, frameCodec, helloMessage, fromCode(capability.getVersion()));
+                recordSuccessfulHandshake(ctx);
+                return;
+            }
+        }
+
+        throw new RuntimeException("The remote peer didn't support the RSK capability");
     }
 
     private byte[] readEIP8Packet(ByteBuf buffer, byte[] plainPacket) {
