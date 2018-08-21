@@ -24,6 +24,8 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.InetAddress;
+
 public class EthereumChannelInitializer extends ChannelInitializer<NioSocketChannel> {
 
     private static final Logger logger = LoggerFactory.getLogger("net");
@@ -41,17 +43,22 @@ public class EthereumChannelInitializer extends ChannelInitializer<NioSocketChan
     }
 
     @Override
-    public void initChannel(NioSocketChannel ch) throws Exception {
+    public void initChannel(NioSocketChannel ch) {
         try {
             if (!peerDiscoveryMode) {
                 logger.info("Open {} connection, channel: {}", isInbound() ? "inbound" : "outbound", ch.toString());
             }
 
-            if (isInbound() && channelManager.isRecentlyDisconnected(ch.remoteAddress().getAddress())) {
+            InetAddress address = ch.remoteAddress().getAddress();
+            if (isInbound() && channelManager.isRecentlyDisconnected(address)) {
                 // avoid too frequent connection attempts
                 logger.info("Drop connection - the same IP was disconnected recently, channel: {}", ch.toString());
                 ch.disconnect();
                 return;
+            }
+
+            if (!channelManager.isAddressBlockAvailable(address)) {
+                logger.info("IP range is full, IP {} is not accepted for new connection", address);
             }
 
             final Channel channel = channelFactory.newInstance();
@@ -67,12 +74,9 @@ public class EthereumChannelInitializer extends ChannelInitializer<NioSocketChan
             ch.config().setOption(ChannelOption.SO_BACKLOG, 1024);
 
             // be aware of channel closing
-            ch.closeFuture().addListener(new ChannelFutureListener() {
-                @Override
-                public void operationComplete(ChannelFuture future) throws Exception {
-                    if (!peerDiscoveryMode) {
-                        channelManager.notifyDisconnect(channel);
-                    }
+            ch.closeFuture().addListener(future -> {
+                if (!peerDiscoveryMode) {
+                    channelManager.notifyDisconnect(channel);
                 }
             });
 
