@@ -59,7 +59,6 @@ public class RskSystemProperties extends SystemProperties {
     private static final int PD_DEFAULT_TIMEOUT_MESSAGE = PD_DEFAULT_CLEAN_PERIOD - 1; //miliseconds
     private static final int PD_DEFAULT_REFRESH_PERIOD = 60000; //miliseconds
 
-    public static final int BLOCKS_FOR_PEERS_DEFAULT = 100;
     private static final String MINER_REWARD_ADDRESS_CONFIG = "miner.reward.address";
     private static final String MINER_COINBASE_SECRET_CONFIG = "miner.coinbase.secret";
     private static final int CHUNK_SIZE = 192;
