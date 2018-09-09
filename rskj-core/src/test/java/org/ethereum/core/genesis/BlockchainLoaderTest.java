@@ -29,7 +29,7 @@ import org.ethereum.config.Constants;
 import org.ethereum.core.Repository;
 import org.ethereum.datasource.HashMapDB;
 import org.ethereum.db.BlockStore;
-import org.ethereum.listener.EthereumListener;
+import org.ethereum.listener.CompositeEthereumListener;
 import org.ethereum.vm.DataWord;
 import org.junit.Assert;
 import org.junit.Test;
@@ -59,7 +59,7 @@ public class BlockchainLoaderTest {
         BlockStore blockStore = Mockito.mock(BlockStore.class);
         Mockito.when(blockStore.getBestBlock()).thenReturn(null);
 
-        EthereumListener ethereumListener = Mockito.mock(EthereumListener.class);
+        CompositeEthereumListener ethereumListener = Mockito.mock(CompositeEthereumListener.class);
 
         Repository repository = new RepositoryImpl(systemProperties, new TrieStoreImpl(new HashMapDB().setClearOnClose(false)));;
 

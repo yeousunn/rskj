@@ -29,7 +29,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.ethereum.core.*;
 import org.ethereum.db.BlockStore;
 import org.ethereum.db.ReceiptStore;
-import org.ethereum.listener.EthereumListener;
+import org.ethereum.listener.CompositeEthereumListener;
+import org.ethereum.listener.EthereumListenerAdapter;
 import org.ethereum.manager.AdminInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.ethereum.crypto.HashUtil.EMPTY_TRIE_HASH;
 
@@ -56,7 +58,7 @@ public class BlockChainLoader {
     private final Repository repository;
     private final ReceiptStore receiptStore;
     private final TransactionPool transactionPool;
-    private final EthereumListener listener;
+    private final CompositeEthereumListener listener;
     private final AdminInfo adminInfo;
     private final BlockValidator blockValidator;
 
@@ -67,7 +69,7 @@ public class BlockChainLoader {
             org.ethereum.db.BlockStore blockStore,
             ReceiptStore receiptStore,
             TransactionPool transactionPool,
-            EthereumListener listener,
+            CompositeEthereumListener listener,
             AdminInfo adminInfo,
             BlockValidator blockValidator) {
 
@@ -93,6 +95,27 @@ public class BlockChainLoader {
                 blockValidator,
                 new BlockExecutor(config, repository, receiptStore, blockStore, listener)
         );
+
+        listener.addListener(new EthereumListenerAdapter() {
+            private int nFlush = 0;
+            @Override
+            public void onBlock(Block block, List<TransactionReceipt> receipts) {
+                // Rolling counter that helps doing flush every RskSystemProperties.CONFIG.flushNumberOfBlocks() flush attempts
+                // We did this because flush is slow, and doing flush for every block degrades the node performance.
+                if (config.isFlushEnabled() && nFlush == 0)  {
+                    long saveTime = System.nanoTime();
+                    repository.flush();
+                    long totalTime = System.nanoTime() - saveTime;
+                    logger.trace("repository flush: [{}]nano", totalTime);
+                    saveTime = System.nanoTime();
+                    blockStore.flush();
+                    totalTime = System.nanoTime() - saveTime;
+                    logger.trace("blockstore flush: [{}]nano", totalTime);
+                }
+                nFlush++;
+                nFlush = nFlush % config.flushNumberOfBlocks();
+            }
+        });
 
         Block bestBlock = blockStore.getBestBlock();
         if (bestBlock == null) {

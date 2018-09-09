@@ -316,8 +316,6 @@ public class BlockChainImpl implements Blockchain {
             onBestBlock(block, result);
             logger.trace("Start onBlock");
             onBlock(block, result);
-            logger.trace("Start flushData");
-            flushData();
 
             logger.trace("Better block {} {}", block.getNumber(), block.getShortHash());
 
@@ -342,8 +340,6 @@ public class BlockChainImpl implements Blockchain {
             saveReceipts(block, result);
             logger.trace("Start onBlock");
             onBlock(block, result);
-            logger.trace("Start flushData");
-            flushData();
 
             if (bestBlock != null && block.getNumber() > bestBlock.getNumber()) {
                 logger.warn("Strange block number state");
@@ -562,25 +558,6 @@ public class BlockChainImpl implements Blockchain {
         }
 
         return blockValidator.isValid(block);
-    }
-
-    // Rolling counter that helps doing flush every RskSystemProperties.CONFIG.flushNumberOfBlocks() flush attempts
-    // We did this because flush is slow, and doing flush for every block degrades the node performance.
-    private int nFlush = 0;
-
-    private void flushData() {
-        if (config.isFlushEnabled() && nFlush == 0)  {
-            long saveTime = System.nanoTime();
-            repository.flush();
-            long totalTime = System.nanoTime() - saveTime;
-            logger.trace("repository flush: [{}]nano", totalTime);
-            saveTime = System.nanoTime();
-            blockStore.flush();
-            totalTime = System.nanoTime() - saveTime;
-            logger.trace("blockstore flush: [{}]nano", totalTime);
-        }
-        nFlush++;
-        nFlush = nFlush % config.flushNumberOfBlocks();
     }
 
     public static byte[] calcTxTrie(List<Transaction> transactions) {
