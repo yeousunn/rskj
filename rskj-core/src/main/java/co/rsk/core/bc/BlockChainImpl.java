@@ -19,7 +19,6 @@
 package co.rsk.core.bc;
 
 import co.rsk.blocks.BlockRecorder;
-import co.rsk.config.RskSystemProperties;
 import co.rsk.core.BlockDifficulty;
 import co.rsk.net.Metrics;
 import co.rsk.panic.PanicProcessor;
@@ -79,7 +78,6 @@ public class BlockChainImpl implements Blockchain {
     private static final Logger logger = LoggerFactory.getLogger("blockchain");
     private static final PanicProcessor panicProcessor = new PanicProcessor();
 
-    private final RskSystemProperties config;
     private final Repository repository;
     private final BlockStore blockStore;
     private final ReceiptStore receiptStore;
@@ -97,15 +95,13 @@ public class BlockChainImpl implements Blockchain {
     private BlockRecorder blockRecorder;
     private boolean noValidation;
 
-    public BlockChainImpl(RskSystemProperties config,
-                          Repository repository,
+    public BlockChainImpl(Repository repository,
                           BlockStore blockStore,
                           ReceiptStore receiptStore,
                           TransactionPool transactionPool,
                           EthereumListener listener,
                           BlockValidator blockValidator,
                           BlockExecutor blockExecutor) {
-        this.config = config;
         this.repository = repository;
         this.blockStore = blockStore;
         this.receiptStore = receiptStore;

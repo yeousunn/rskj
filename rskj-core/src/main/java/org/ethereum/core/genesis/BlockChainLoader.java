@@ -81,7 +81,6 @@ public class BlockChainLoader {
 
     public BlockChainImpl loadBlockchain() {
         BlockChainImpl blockchain = new BlockChainImpl(
-                config,
                 repository,
                 blockStore,
                 receiptStore,
